@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sobrevivente da Arena v3.5 - Visual Aprimorado</title>
+    <title>Sobrevivente da Arena v3.6 - Mira Híbrida</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #0d1b2a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: white; }
-        canvas { display: block; background-color: #1b263b; }
+        canvas { display: block; background-color: #1b263b; cursor: auto; /* Cursor padrão quando não está mirando */ }
         #ui-container { position: absolute; top: 0; left: 0; width: 100%; padding: 10px; box-sizing: border-box; user-select: none; }
         .bar { background-color: #415a77; border-radius: 5px; height: 20px; margin-bottom: 5px; width: 300px; border: 2px solid #e0e1dd; }
         #health-bar-fill { background-color: #d90429; height: 100%; border-radius: 4px; transition: width 0.2s; }
@@ -64,62 +64,19 @@ const ui = { healthBarFill: document.getElementById('health-bar-fill'), xpBarFil
 class Entity { constructor(x, y, radius) { this.x = x; this.y = y; this.radius = radius; } draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = this.color; ctx.fill(); } update(velocity) { this.x += velocity.x; this.y += velocity.y; } }
 class Player extends Entity { constructor(x, y) { super(x, y, 15); this.color = 'hsl(200, 80%, 60%)'; } }
 class Projectile extends Entity {
-    constructor(x, y, velocity, stats) {
-        super(x, y, stats.projSize);
-        this.velocity = velocity; this.color = 'white'; this.damage = stats.projDamage * stats.damageMultiplier; this.pierce = stats.projPierce;
-        this.trail = []; // NOVO: Array para o rastro
-    }
-    update(velocity) {
-        // NOVO: Lógica do rastro
-        this.trail.push({ x: this.x, y: this.y });
-        if (this.trail.length > 5) { this.trail.shift(); }
-        super.update(velocity);
-    }
-    draw() {
-        // NOVO: Desenha o rastro
-        this.trail.forEach((p, index) => {
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, this.radius * ((index + 1) / this.trail.length) * 0.5, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255, 255, 255, ${((index + 1) / this.trail.length) * 0.3})`;
-            ctx.fill();
-        });
-        super.draw();
-    }
+    constructor(x, y, velocity, stats) { super(x, y, stats.projSize); this.velocity = velocity; this.color = 'white'; this.damage = stats.projDamage * stats.damageMultiplier; this.pierce = stats.projPierce; this.trail = []; }
+    update(velocity) { this.trail.push({ x: this.x, y: this.y }); if (this.trail.length > 5) { this.trail.shift(); } super.update(velocity); }
+    draw() { this.trail.forEach((p, index) => { ctx.beginPath(); ctx.arc(p.x, p.y, this.radius * ((index + 1) / this.trail.length) * 0.5, 0, Math.PI * 2); ctx.fillStyle = `rgba(255, 255, 255, ${((index + 1) / this.trail.length) * 0.3})`; ctx.fill(); }); super.draw(); }
 }
 class DamageText {
-    constructor(x, y, text, color = 'yellow') {
-        this.x = x; this.y = y; this.text = text; this.color = color;
-        this.alpha = 1.0; this.yVelocity = -30; this.duration = 0.8;
-    }
+    constructor(x, y, text, color = 'yellow') { this.x = x; this.y = y; this.text = text; this.color = color; this.alpha = 1.0; this.yVelocity = -30; this.duration = 0.8; }
     update(deltaTime) { this.y += this.yVelocity * deltaTime; this.alpha -= (1 / this.duration) * deltaTime; }
     draw(ctx) { ctx.save(); ctx.globalAlpha = this.alpha; ctx.fillStyle = this.color; ctx.strokeStyle = 'black'; ctx.lineWidth = 1; ctx.font = 'bold 16px Segoe UI'; ctx.textAlign = 'center'; ctx.strokeText(this.text, this.x, this.y); ctx.fillText(this.text, this.x, this.y); ctx.restore(); }
 }
 class Enemy extends Entity {
-    constructor(x, y, radius, velocity, health, color) {
-        super(x, y, radius);
-        this.velocity = velocity; this.health = health; this.maxHealth = health; this.color = color; this.xpValue = Math.floor(radius);
-        this.hitFlashDuration = 0; // NOVO: Duração do flash de acerto
-    }
-    takeDamage(amount, type) {
-        this.health -= amount;
-        this.hitFlashDuration = 0.1; // NOVO: Ativa o flash
-        const color = type === 'meteor' ? '#ff6b6b' : 'yellow';
-        damageNumbers.push(new DamageText(this.x, this.y + (Math.random() - 0.5) * 10, Math.ceil(amount), color));
-    }
-    draw(deltaTime) {
-        if(this.hitFlashDuration > 0) {
-            this.hitFlashDuration -= deltaTime;
-            ctx.fillStyle = 'white'; // NOVO: Cor do flash
-        } else {
-            ctx.fillStyle = this.color;
-        }
-        ctx.fillRect(this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
-        if (this.health < this.maxHealth) {
-            const barWidth = this.radius * 2; const barHeight = 5; const yOffset = this.y - this.radius - barHeight - 2;
-            ctx.fillStyle = '#333'; ctx.fillRect(this.x - this.radius, yOffset, barWidth, barHeight);
-            ctx.fillStyle = '#2a9d8f'; ctx.fillRect(this.x - this.radius, yOffset, barWidth * (this.health / this.maxHealth), barHeight);
-        }
-    }
+    constructor(x, y, radius, velocity, health, color) { super(x, y, radius); this.velocity = velocity; this.health = health; this.maxHealth = health; this.color = color; this.xpValue = Math.floor(radius); this.hitFlashDuration = 0; }
+    takeDamage(amount, type) { this.health -= amount; this.hitFlashDuration = 0.1; const color = type === 'meteor' ? '#ff6b6b' : 'yellow'; damageNumbers.push(new DamageText(this.x, this.y + (Math.random() - 0.5) * 10, Math.ceil(amount), color)); }
+    draw(deltaTime) { if(this.hitFlashDuration > 0) { this.hitFlashDuration -= deltaTime; ctx.fillStyle = 'white'; } else { ctx.fillStyle = this.color; } ctx.fillRect(this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2); if (this.health < this.maxHealth) { const barWidth = this.radius * 2; const barHeight = 5; const yOffset = this.y - this.radius - barHeight - 2; ctx.fillStyle = '#333'; ctx.fillRect(this.x - this.radius, yOffset, barWidth, barHeight); ctx.fillStyle = '#2a9d8f'; ctx.fillRect(this.x - this.radius, yOffset, barWidth * (this.health / this.maxHealth), barHeight); } }
 }
 class XPOrb extends Entity { constructor(x, y, value) { super(x, y, 3 + Math.log(value)); this.color = '#fca311'; this.value = value; } }
 class Effect extends Entity { constructor(x, y, radius, color, duration) { super(x, y, radius); this.color = color; this.duration = duration; this.initialRadius = radius; } update(deltaTime) { this.duration -= deltaTime; this.radius = this.initialRadius * (this.duration / 0.5); this.draw(); } }
@@ -132,6 +89,9 @@ let score, level, currentXP, requiredXP;
 let animationId, gameTime, spawnTimer, lastTime, meteorTimer;
 let isGamePaused = false;
 const keys = {};
+// NOVO: Variáveis para a mira manual
+let isManualAiming = false;
+const mouse = { x: 0, y: 0 };
 
 // --- FUNÇÕES PRINCIPAIS ---
 function init() {
@@ -143,7 +103,7 @@ function init() {
     projectiles = []; enemies = []; xpOrbs = []; effects = []; hearts = []; damageNumbers = [];
     score = 0; level = 1; currentXP = 0; requiredXP = 80;
     gameTime = 0; spawnTimer = 0; lastTime = 0; meteorTimer = 0;
-    isGamePaused = false;
+    isGamePaused = false; isManualAiming = false;
     ui.gameOverScreen.style.display = 'none'; ui.levelUpScreen.style.display = 'none';
     updateUI();
     requestAnimationFrame(animate);
@@ -168,20 +128,14 @@ function animate(timestamp) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
     // --- HABILIDADES PASSIVAS ---
-    if (playerStats.staticFieldRadius > 0) {
-        ctx.beginPath(); ctx.arc(player.x, player.y, playerStats.staticFieldRadius, 0, Math.PI*2); ctx.fillStyle = 'rgba(200, 220, 255, 0.1)'; ctx.fill();
-        enemies.forEach(e => { if (Math.hypot(player.x-e.x, player.y-e.y) < playerStats.staticFieldRadius) e.takeDamage(playerStats.staticFieldDamage * deltaTime, 'field'); });
-    }
+    if (playerStats.staticFieldRadius > 0) { enemies.forEach(e => { if (Math.hypot(player.x-e.x, player.y-e.y) < playerStats.staticFieldRadius) e.takeDamage(playerStats.staticFieldDamage * deltaTime, 'field'); }); }
     meteorTimer += deltaTime;
-    if (playerStats.meteorShower > 0 && meteorTimer > playerStats.meteorInterval) {
+    if (playerStats.meteorShower > 0 && meteorTimer > playerStats.meteorInterval && enemies.length > 0) {
         meteorTimer = 0;
-        if(enemies.length > 0) {
-            const target = enemies[Math.floor(Math.random()*enemies.length)];
-            const meteorRadius = playerStats.meteorDamage * 2;
-            // CORREÇÃO: Efeito visual agora usa a posição exata e raio do dano
-            effects.push(new Effect(target.x, target.y, meteorRadius, 'rgba(255, 100, 0, 0.5)', 0.5));
-            enemies.forEach(e => { if(Math.hypot(target.x-e.x, target.y-e.y) < meteorRadius) e.takeDamage(playerStats.meteorDamage, 'meteor'); });
-        }
+        const target = enemies[Math.floor(Math.random()*enemies.length)];
+        const meteorRadius = playerStats.meteorDamage * 2;
+        effects.push(new Effect(target.x, target.y, meteorRadius, 'rgba(255, 100, 0, 0.5)', 0.5));
+        enemies.forEach(e => { if(Math.hypot(target.x-e.x, target.y-e.y) < meteorRadius) e.takeDamage(playerStats.meteorDamage, 'meteor'); });
     }
     
     // --- MOVIMENTAÇÃO E TIRO ---
@@ -192,16 +146,24 @@ function animate(timestamp) {
     if(mag > 0) { player.x += (dx/mag) * playerStats.moveSpeed; player.y += (dy/mag) * playerStats.moveSpeed; }
     player.x = Math.max(player.radius, Math.min(canvas.width-player.radius, player.x));
     player.y = Math.max(player.radius, Math.min(canvas.height-player.radius, player.y));
-    player.draw();
+    
     fireCooldown += 60 * deltaTime;
-    if (fireCooldown >= playerStats.fireRate && enemies.length > 0) {
+    if (fireCooldown >= playerStats.fireRate) {
         fireCooldown %= playerStats.fireRate;
-        const closestEnemy = enemies.reduce((c, e) => (Math.hypot(player.x-e.x,player.y-e.y) < c.dist) ? {e, dist:Math.hypot(player.x-e.x,player.y-e.y)} : c, {e:null, dist:Infinity}).e;
-        if(closestEnemy) {
-            const angle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+        let aimAngle;
+        // NOVO: Lógica de mira híbrida
+        if (isManualAiming) {
+            aimAngle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+        } else {
+            if (enemies.length > 0) {
+                const closestEnemy = enemies.reduce((c, e) => (Math.hypot(player.x - e.x, player.y - e.y) < c.dist) ? {e, dist:Math.hypot(player.x-e.x,player.y-e.y)} : c, {e:null, dist:Infinity}).e;
+                if(closestEnemy) aimAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+            }
+        }
+        if (aimAngle !== undefined) {
             for (let i = 0; i < playerStats.projAmount; i++) {
-                const spread = (i-(playerStats.projAmount - 1)/2)*0.15;
-                projectiles.push(new Projectile(player.x,player.y,{x:Math.cos(angle+spread)*playerStats.projSpeed, y:Math.sin(angle+spread)*playerStats.projSpeed }, playerStats));
+                const spread = (i-(playerStats.projAmount-1)/2)*0.15;
+                projectiles.push(new Projectile(player.x,player.y,{x:Math.cos(aimAngle+spread)*playerStats.projSpeed, y:Math.sin(aimAngle+spread)*playerStats.projSpeed }, playerStats));
             }
         }
     }
@@ -211,38 +173,37 @@ function animate(timestamp) {
     hearts.forEach(h => h.draw());
     projectiles.forEach(p => p.draw());
     enemies.forEach(e => e.draw(deltaTime));
+    player.draw(); // Desenha o jogador por cima dos inimigos e projéteis
     effects.forEach(e => e.update(deltaTime));
     damageNumbers.forEach(d => d.draw(ctx));
+    
+    // NOVO: Desenha a mira customizada
+    if (isManualAiming) {
+        ctx.save();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(mouse.x - 10, mouse.y); ctx.lineTo(mouse.x + 10, mouse.y);
+        ctx.moveTo(mouse.x, mouse.y - 10); ctx.lineTo(mouse.x, mouse.y + 10);
+        ctx.stroke();
+        ctx.restore();
+    }
     
     // --- ATUALIZAÇÃO DE ESTADO E COLISÕES ---
     xpOrbs.forEach((orb, i) => { if (Math.hypot(player.x-orb.x, player.y-orb.y) < playerStats.pickupRadius) { gainXP(orb.value); xpOrbs.splice(i,1); } });
     hearts.forEach((h, i) => { if (Math.hypot(player.x-h.x, player.y-h.y) < player.radius+h.radius) { playerStats.currentHealth = Math.min(playerStats.maxHealth, playerStats.currentHealth + 10); hearts.splice(i,1); } });
     damageNumbers.forEach((d, i) => { d.update(deltaTime); if(d.alpha <= 0) damageNumbers.splice(i,1); });
 
-    projectiles.forEach((p, i) => {
-        p.update(p.velocity);
-        if(p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) projectiles.splice(i, 1);
-    });
+    projectiles.forEach((p, i) => { p.update(p.velocity); if(p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) projectiles.splice(i, 1); });
 
     enemies.forEach((e, i) => {
         e.update(e.velocity);
         projectiles.forEach((p, pi) => {
             if(p.pierce < 0) return;
-            if(Math.hypot(p.x - e.x, p.y-e.y) < p.radius+e.radius) {
-                p.pierce--;
-                e.takeDamage(p.damage, 'projectile');
-                if(p.pierce < 0) projectiles.splice(pi,1);
-            }
+            if(Math.hypot(p.x-e.x, p.y-e.y) < p.radius+e.radius) { p.pierce--; e.takeDamage(p.damage, 'projectile'); if(p.pierce<0) projectiles.splice(pi,1); }
         });
-        if(e.health <= 0) {
-            enemies.splice(i,1); score += 10;
-            xpOrbs.push(new XPOrb(e.x, e.y, e.xpValue));
-            if(Math.random() < playerStats.reaperSoulChance) hearts.push(new HealthHeart(e.x, e.y));
-        } else if(Math.hypot(player.x-e.x, player.y-e.y) < player.radius+e.radius) {
-            playerStats.currentHealth -= 10 * playerStats.defenseMultiplier;
-            enemies.splice(i,1);
-            if(playerStats.currentHealth <= 0) { playerStats.currentHealth = 0; endGame(); }
-        }
+        if(e.health <= 0) { enemies.splice(i,1); score += 10; xpOrbs.push(new XPOrb(e.x, e.y, e.xpValue)); if(Math.random() < playerStats.reaperSoulChance) hearts.push(new HealthHeart(e.x, e.y)); }
+        else if(Math.hypot(player.x-e.x, player.y-e.y) < player.radius+e.radius) { playerStats.currentHealth -= 10 * playerStats.defenseMultiplier; enemies.splice(i,1); if(playerStats.currentHealth <= 0) { playerStats.currentHealth = 0; endGame(); } }
     });
     
     // --- SPAWN DE INIMIGOS ---
@@ -250,7 +211,7 @@ function animate(timestamp) {
     let spawnInterval = (gameTime < 30)? 1.5 : (gameTime < 90)? 0.8 : (gameTime < 180)? 0.4 : 0.15;
     if(spawnTimer > spawnInterval) {
         spawnTimer %= spawnInterval;
-        let health = 10 + Math.floor(gameTime/10)*5; let radius = 10 + Math.log2(health); let color = `hsl(${200 + gameTime%160}, 50%, 40%)`;
+        let health = 10+Math.floor(gameTime/10)*5; let radius = 10+Math.log2(health); let color = `hsl(${200+gameTime%160}, 50%, 40%)`;
         if (gameTime > 120 && Math.random() < 0.15) { health *= 5; radius *= 1.8; color = 'hsl(300, 70%, 50%)'; }
         let x,y; if (Math.random()<0.5){x=Math.random()<0.5?0-radius:canvas.width+radius;y=Math.random()*canvas.height;}else{x=Math.random()*canvas.width;y=Math.random()<0.5?0-radius:canvas.height+radius;}
         const angle = Math.atan2(player.y-y, player.x-x);
@@ -264,6 +225,12 @@ window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 ui.restartButton.addEventListener('click', init);
 ui.rerollButton.addEventListener('click', () => { if(playerStats.rerolls > 0) { playerStats.rerolls--; populateLevelUpScreen(); } });
 window.addEventListener('resize', () => { if(!isGamePaused) init(); });
+
+// NOVO: Listeners para a mira manual
+window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+window.addEventListener('mousedown', () => { if(!isGamePaused) { isManualAiming = true; canvas.style.cursor = 'none'; } });
+window.addEventListener('mouseup', () => { if(!isGamePaused) { isManualAiming = false; canvas.style.cursor = 'auto'; } });
+
 // --- INICIAR O JOGO ---
 init();
 </script>
