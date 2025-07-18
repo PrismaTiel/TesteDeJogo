@@ -13,7 +13,7 @@
         #xp-bar-fill { background-color: #fca311; height: 100%; border-radius: 4px; transition: width 0.2s; }
         #ui-stats { display: flex; gap: 20px; font-size: 20px; font-weight: bold; align-items: flex-end; }
         #reroll-container { font-size: 16px; margin-top: 5px; }
-        #game-over-screen, #level-up-screen { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); justify-content: center; align-items: center; flex-direction: column; text-align: center; backdrop-filter: blur(5px); }
+        #game-over-screen, #level-up-screen { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); justify-content: center; align-items: center; flex-direction: column; text-align: center; backdrop-filter: blur(5px); z-index: 10; }
         .modal-content { background-color: #1b263b; padding: 20px 40px; border-radius: 15px; border: 3px solid #e0e1dd; max-height: 90vh; display: flex; flex-direction: column; }
         .modal-content h1 { margin-top: 0; font-size: 48px; }
         .modal-content p { font-size: 24px; }
@@ -30,24 +30,36 @@
         .upgrade-card .level { font-size: 12px; color: #ccc; margin-top: 10px; font-style: italic;}
         
         /* Estilos do Leaderboard */
-        #leaderboard-container { margin-top: 20px; text-align: left; overflow-y: auto; }
-        #leaderboard-list { list-style-type: none; padding: 0; }
+        #leaderboard-container { margin-top: 20px; text-align: left; overflow-y: auto; border-top: 1px solid #415a77; padding-top: 15px; }
+        #leaderboard-list { list-style-type: none; padding: 0; margin: 0; }
         #leaderboard-list li { background-color: rgba(0,0,0,0.2); padding: 5px 10px; border-radius: 5px; margin-bottom: 5px; font-size: 18px; }
         #leaderboard-list li:nth-child(1) { background-color: #fca311; color: #111; font-weight: bold; }
         #leaderboard-list li:nth-child(2) { background-color: #c0c0c0; color: #111; }
         #leaderboard-list li:nth-child(3) { background-color: #cd7f32; color: #111; }
 
-        #score-submission { margin-top: 15px; }
-        #playerNameInput { padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; }
+        #score-submission { margin-top: 15px; display: flex; justify-content: center; align-items: center; }
+        #playerNameInput { padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; background-color: #e0e1dd; color: #111; }
         #submitScoreButton { font-size: 16px; padding: 10px 20px; margin-top: 0; margin-left: 10px; }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
     <div id="ui-container">
+        <div id="ui-stats">
+            <div><span>Vida</span><div class="bar"><div id="health-bar-fill"></div></div></div>
+            <div><span>XP</span><div class="bar"><div id="xp-bar-fill"></div></div></div>
+            <div><span>Nível: <span id="levelEl">1</span></span><br><span>Pontos: <span id="scoreEl">0</span></span></div>
+            <div><span>Tempo: <span id="timeEl">0</span>s</span><div id="reroll-container"></div></div>
         </div>
+    </div>
     <div id="level-up-screen">
+        <div class="modal-content">
+            <h1>NOVO NÍVEL!</h1>
+            <p>Escolha uma melhoria:</p>
+            <div id="upgrade-options"></div>
+            <button id="reroll-button">Rerrolar (Restantes: <span id="reroll-count">0</span>)</button>
         </div>
+    </div>
     <div id="game-over-screen">
         <div class="modal-content">
             <h1>Fim de Jogo</h1>
@@ -67,34 +79,105 @@
         </div>
     </div>
 
+<!-- =================================================================================== -->
+<!-- FIREBASE SDKs - NÃO MEXER -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
+<!-- CONFIGURAÇÃO DO SEU PROJETO FIREBASE -->
 <script>
-    // ===================================================================================
-    // COLE A SUA CONFIGURAÇÃO DO FIREBASE AQUI!
-    // Substitua este objeto de exemplo pelo que o Firebase te deu.
-    // ===================================================================================
+    // Configuração do seu app da web do Firebase
     const firebaseConfig = {
-        apiKey: "SUA_API_KEY",
-        authDomain: "SEU_PROJETO.firebaseapp.com",
-        projectId: "SEU_PROJETO_ID",
-        storageBucket: "SEU_PROJETO.appspot.com",
-        messagingSenderId: "SEU_SENDER_ID",
-        appId: "SEU_APP_ID"
+      apiKey: "AIzaSyDkygDllVhLg_liaaYouUIhDXmMZ-Rf5T4",
+      authDomain: "tiel-s.firebaseapp.com",
+      projectId: "tiel-s",
+      storageBucket: "tiel-s.appspot.com",
+      messagingSenderId: "36367636678",
+      appId: "1:36367636678:web:64efb9e087291df7d11fc7",
+      measurementId: "G-T8KHWY1ZN2"
     };
 
     // Inicializa o Firebase e o Firestore
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 </script>
+<!-- =================================================================================== -->
+
+
 <script>
-// --- TODO O CÓDIGO DO JOGO VEM AQUI ---
+// --- BANCO DE DADOS DE MELHORIAS ---
+const allUpgrades = {
+    'fire_rate': { name: "Cadência Rápida", description: "Aumenta a velocidade de tiro em 8%.", maxLevel: 5 },'proj_speed': { name: "Propulsores", description: "Seus projéteis viajam mais rápido.", maxLevel: 5 },'proj_size': { name: "Munição Expansiva", description: "Aumenta o tamanho dos projéteis.", maxLevel: 5 },'move_speed': { name: "Motor Aprimorado", description: "Você se move 10% mais rápido.", maxLevel: 5 },'pickup_radius': { name: "Ímã", description: "Aumenta o raio de coleta de XP.", maxLevel: 5 },'max_health': { name: "Blindagem", description: "Aumenta a vida máxima em 25.", maxLevel: 5 },'proj_pierce': { name: "Munição Perfurante", description: "Projéteis perfuram +1 inimigo.", maxLevel: 3 },'glass_cannon': { name: "Canhão de Vidro", description: "Dobre seu dano, mas receba dano em dobro.", maxLevel: 1, rarity: 'rare' },'reaper_soul': { name: "Alma de Ceifador", description: "Inimigos têm 5% de chance de dropar um coração de cura.", maxLevel: 5, rarity: 'rare' },'reroll_chance': { name: "Pensamento Estratégico", description: "Ganha +1 rerrolagem de melhorias por nível.", maxLevel: 3, rarity: 'rare' },'static_field': { name: "Campo Estático", description: "Cria uma aura que causa dano contínuo a inimigos próximos.", maxLevel: 1, rarity: 'rare' },'field_radius': { name: "Expansor de Campo", description: "Aumenta o raio do Campo Estático.", maxLevel: 3, rarity: 'rare', requires: 'static_field' },'field_damage': { name: "Potencializador de Campo", description: "Aumenta o dano do Campo Estático.", maxLevel: 5, rarity: 'rare', requires: 'static_field' },'meteor_shower': { name: "Chuva de Meteoros", description: "Periodicamente, meteoros caem em inimigos aleatórios.", maxLevel: 1, rarity: 'rare' },'meteor_damage': { name: "Meteoros Maiores", description: "Aumenta o dano e a área dos meteoros.", maxLevel: 5, rarity: 'rare', requires: 'meteor_shower' },'meteor_frequency': { name: "Tempestade de Meteoros", description: "Meteoros caem com mais frequência.", maxLevel: 5, rarity: 'rare', requires: 'meteor_shower' },'blood_pact': { name: "Pacto de Sangue", description: "Sacrifique 20% da vida MÁXIMA para ganhar +25% de dano e cadência.", maxLevel: 1, rarity: 'legendary' },'proj_amount': { name: "Tiro Múltiplo", description: "Dispara +1 projétil.", maxLevel: 2, rarity: 'legendary' },
+};
+
+// --- CONFIGURAÇÃO E CLASSES ---
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-// ... (resto do código do jogo, classes, etc.)
+const ui = { 
+    healthBarFill: document.getElementById('health-bar-fill'), xpBarFill: document.getElementById('xp-bar-fill'), 
+    levelEl: document.getElementById('levelEl'), scoreEl: document.getElementById('scoreEl'), timeEl: document.getElementById('timeEl'), 
+    finalScoreEl: document.getElementById('finalScoreEl'), gameOverScreen: document.getElementById('game-over-screen'), 
+    levelUpScreen: document.getElementById('level-up-screen'), upgradeOptionsContainer: document.getElementById('upgrade-options'), 
+    restartButton: document.getElementById('restart-button'), rerollButton: document.getElementById('reroll-button'), 
+    rerollCount: document.getElementById('reroll-count'), rerollContainer: document.getElementById('reroll-container'),
+    playerNameInput: document.getElementById('playerNameInput'),
+    submitScoreButton: document.getElementById('submitScoreButton'),
+    leaderboardList: document.getElementById('leaderboard-list')
+};
 
-// --- FUNÇÕES DO LEADERBOARD ---
+class Entity { constructor(x, y, radius) { this.x = x; this.y = y; this.radius = radius; } draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = this.color; ctx.fill(); } update(velocity) { this.x += velocity.x; this.y += velocity.y; } }
+class Player extends Entity { constructor(x, y) { super(x, y, 15); this.color = 'hsl(200, 80%, 60%)'; } }
+class Projectile extends Entity {
+    constructor(x, y, velocity, stats) { super(x, y, stats.projSize); this.velocity = velocity; this.color = 'white'; this.damage = stats.projDamage * stats.damageMultiplier; this.pierce = stats.projPierce; this.trail = []; }
+    update(velocity) { this.trail.push({ x: this.x, y: this.y }); if (this.trail.length > 5) { this.trail.shift(); } super.update(velocity); }
+    draw() { this.trail.forEach((p, index) => { ctx.beginPath(); ctx.arc(p.x, p.y, this.radius * ((index + 1) / this.trail.length) * 0.5, 0, Math.PI * 2); ctx.fillStyle = `rgba(255, 255, 255, ${((index + 1) / this.trail.length) * 0.3})`; ctx.fill(); }); super.draw(); }
+}
+class DamageText {
+    constructor(x, y, text, color = 'yellow') { this.x = x; this.y = y; this.text = text; this.color = color; this.alpha = 1.0; this.yVelocity = -30; this.duration = 0.8; }
+    update(deltaTime) { this.y += this.yVelocity * deltaTime; this.alpha -= (1 / this.duration) * deltaTime; }
+    draw(ctx) { ctx.save(); ctx.globalAlpha = this.alpha; ctx.fillStyle = this.color; ctx.strokeStyle = 'black'; ctx.lineWidth = 1; ctx.font = 'bold 16px Segoe UI'; ctx.textAlign = 'center'; ctx.strokeText(this.text, this.x, this.y); ctx.fillText(this.text, this.x, this.y); ctx.restore(); }
+}
+class Enemy extends Entity {
+    constructor(x, y, radius, velocity, health, color) { super(x, y, radius); this.velocity = velocity; this.health = health; this.maxHealth = health; this.color = color; this.xpValue = Math.floor(radius); this.hitFlashDuration = 0; }
+    takeDamage(amount, type) { this.health -= amount; this.hitFlashDuration = 0.1; const color = type === 'meteor' ? '#ff6b6b' : 'yellow'; damageNumbers.push(new DamageText(this.x, this.y + (Math.random() - 0.5) * 10, Math.ceil(amount), color)); }
+    draw(deltaTime) { if(this.hitFlashDuration > 0) { this.hitFlashDuration -= deltaTime; ctx.fillStyle = 'white'; } else { ctx.fillStyle = this.color; } ctx.fillRect(this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2); if (this.health < this.maxHealth) { const barWidth = this.radius * 2; const barHeight = 5; const yOffset = this.y - this.radius - barHeight - 2; ctx.fillStyle = '#333'; ctx.fillRect(this.x - this.radius, yOffset, barWidth, barHeight); ctx.fillStyle = '#2a9d8f'; ctx.fillRect(this.x - this.radius, yOffset, barWidth * (this.health / this.maxHealth), barHeight); } }
+}
+class XPOrb extends Entity { constructor(x, y, value) { super(x, y, 3 + Math.log(value)); this.color = '#fca311'; this.value = value; } }
+class Effect extends Entity { constructor(x, y, radius, color, duration) { super(x, y, radius); this.color = color; this.duration = duration; this.initialRadius = radius; } update(deltaTime) { this.duration -= deltaTime; this.radius = this.initialRadius * (this.duration / 0.5); this.draw(); } }
+class HealthHeart extends Entity { constructor(x, y) { super(x, y, 8); this.color = '#ff4d6d'; } }
+
+// --- VARIÁVEIS DO JOGO ---
+let player, playerStats, playerUpgrades;
+let projectiles, enemies, xpOrbs, effects, hearts, damageNumbers;
+let score, level, currentXP, requiredXP;
+let animationId, gameTime, spawnTimer, lastTime, meteorTimer;
+let isGamePaused = false;
+const keys = {};
+let isManualAiming = false;
+const mouse = { x: 0, y: 0 };
+
+// --- FUNÇÕES PRINCIPAIS ---
+function init() {
+    if (animationId) cancelAnimationFrame(animationId);
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    player = new Player(canvas.width / 2, canvas.height / 2);
+    playerStats = { maxHealth: 100, currentHealth: 100, healthRegen: 0, moveSpeed: 3, pickupRadius: 60, xpGain: 1, damageMultiplier: 1, defenseMultiplier: 1, rerolls: 0, fireRate: 35, projDamage: 5, projSpeed: 4, projSize: 5, projPierce: 0, projAmount: 1, reaperSoulChance: 0, staticFieldRadius: 0, staticFieldDamage: 2, meteorShower: 0, meteorDamage: 10, meteorInterval: 10, };
+    playerUpgrades = {};
+    projectiles = []; enemies = []; xpOrbs = []; effects = []; hearts = []; damageNumbers = [];
+    score = 0; level = 1; currentXP = 0; requiredXP = 80;
+    gameTime = 0; spawnTimer = 0; lastTime = 0; meteorTimer = 0;
+    isGamePaused = false; isManualAiming = false;
+    ui.gameOverScreen.style.display = 'none'; ui.levelUpScreen.style.display = 'none';
+    updateUI();
+    requestAnimationFrame(animate);
+}
+function getUpgradeOptions() { const weightedPool = []; Object.keys(allUpgrades).forEach(id => { const up = allUpgrades[id]; const currentLevel = playerUpgrades[id] || 0; const hasReq = !up.requires || playerUpgrades[up.requires]; if (currentLevel < up.maxLevel && hasReq) { let weight = 10; if (up.rarity === 'rare') weight = 5; if (up.rarity === 'legendary') weight = 1; for(let i = 0; i < weight; i++) weightedPool.push(id); } }); const options = new Set(); while (options.size < 3 && weightedPool.length > 0) { options.add(weightedPool[Math.floor(Math.random() * weightedPool.length)]); } return Array.from(options); }
+function populateLevelUpScreen() { ui.upgradeOptionsContainer.innerHTML = ''; const options = getUpgradeOptions(); if (options.length === 0) { applyUpgrade('max_health'); return; } options.forEach(id => { const up = allUpgrades[id]; const card = document.createElement('div'); card.className = `upgrade-card ${up.rarity || ''}`; card.innerHTML = `<h3>${up.name}</h3><p>${up.description}</p><div class="level">Nível: ${playerUpgrades[id] || 0}/${up.maxLevel}</div>`; card.onclick = () => applyUpgrade(id); ui.upgradeOptionsContainer.appendChild(card); }); if (playerStats.rerolls > 0) { ui.rerollButton.style.display = 'block'; ui.rerollCount.innerText = playerStats.rerolls; } else { ui.rerollButton.style.display = 'none'; } }
+function showLevelUpScreen() { isGamePaused = true; ui.levelUpScreen.style.display = 'flex'; populateLevelUpScreen(); }
+function applyUpgrade(id) { playerUpgrades[id] = (playerUpgrades[id] || 0) + 1; switch(id) { case 'max_health': playerStats.maxHealth += 25; playerStats.currentHealth += 25; break; case 'move_speed': playerStats.moveSpeed *= 1.1; break; case 'pickup_radius': playerStats.pickupRadius *= 1.25; break; case 'fire_rate': playerStats.fireRate *= 0.92; break; case 'proj_speed': playerStats.projSpeed += 0.5; break; case 'proj_size': playerStats.projSize += 1; break; case 'proj_pierce': playerStats.projPierce += 1; break; case 'glass_cannon': playerStats.damageMultiplier *= 2; playerStats.defenseMultiplier *= 2; break; case 'reaper_soul': playerStats.reaperSoulChance += 0.05; break; case 'reroll_chance': playerStats.rerolls++; break; case 'static_field': playerStats.staticFieldRadius = 100; break; case 'field_radius': playerStats.staticFieldRadius *= 1.2; break; case 'field_damage': playerStats.staticFieldDamage *= 1.5; break; case 'meteor_shower': playerStats.meteorShower = 1; break; case 'meteor_damage': playerStats.meteorDamage *= 1.5; break; case 'meteor_frequency': playerStats.meteorInterval *= 0.8; break; case 'blood_pact': playerStats.maxHealth *= 0.8; playerStats.currentHealth = Math.min(playerStats.currentHealth, playerStats.maxHealth);playerStats.damageMultiplier *= 1.25; playerStats.fireRate *= 0.75;break; case 'proj_amount': playerStats.projAmount++; break; } isGamePaused = false; ui.levelUpScreen.style.display = 'none'; }
+function gainXP(amount) { currentXP += amount * playerStats.xpGain; score += Math.floor(amount); while (currentXP >= requiredXP) { currentXP -= requiredXP; level++; requiredXP = Math.floor(requiredXP * 1.25); playerStats.currentHealth = playerStats.maxHealth; showLevelUpScreen(); } updateUI(); }
+function updateUI() { ui.healthBarFill.style.width = `${(playerStats.currentHealth / playerStats.maxHealth) * 100}%`; ui.xpBarFill.style.width = `${(currentXP / requiredXP) * 100}%`; ui.levelEl.innerText = level; ui.scoreEl.innerText = score; ui.timeEl.innerText = Math.floor(gameTime); ui.rerollContainer.innerText = `Rerrolagens: ${playerStats.rerolls}`; }
+
 async function submitScore(playerName, playerScore) {
     const name = playerName.trim() === '' ? 'Anônimo' : playerName.trim();
     const submitButton = ui.submitScoreButton;
@@ -107,8 +190,7 @@ async function submitScore(playerName, playerScore) {
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
         submitButton.textContent = 'Enviado!';
-        console.log("Pontuação enviada!");
-        await displayLeaderboard(); // Atualiza o leaderboard após o envio
+        await displayLeaderboard();
     } catch (error) {
         console.error("Erro ao enviar pontuação: ", error);
         submitButton.textContent = 'Erro!';
@@ -141,43 +223,129 @@ async function displayLeaderboard() {
     }
 }
 
-// Modificação na função endGame para chamar o leaderboard
 function endGame() {
     isGamePaused = true;
     ui.finalScoreEl.innerText = score;
-    ui.submitScoreButton.disabled = false; // Garante que o botão esteja ativo
+    ui.submitScoreButton.disabled = false;
     ui.submitScoreButton.textContent = 'Enviar Pontuação';
     ui.gameOverScreen.style.display = 'flex';
-    displayLeaderboard(); // Mostra o leaderboard assim que o jogo acaba
+    displayLeaderboard();
 }
+let fireCooldown = 0;
 
-// NOVO: Event listener para o botão de submeter pontuação
+function animate(timestamp) {
+    animationId = requestAnimationFrame(animate);
+    if (!lastTime) lastTime = timestamp;
+    const deltaTime = (timestamp - lastTime) / 1000;
+    lastTime = timestamp;
+    if (isGamePaused) return;
+
+    gameTime += deltaTime;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // HABILIDADES PASSIVAS
+    if (playerStats.staticFieldRadius > 0) { enemies.forEach(e => { if (Math.hypot(player.x-e.x, player.y-e.y) < playerStats.staticFieldRadius) e.takeDamage(playerStats.staticFieldDamage * deltaTime, 'field'); }); }
+    meteorTimer += deltaTime;
+    if (playerStats.meteorShower > 0 && meteorTimer > playerStats.meteorInterval && enemies.length > 0) {
+        meteorTimer = 0;
+        const target = enemies[Math.floor(Math.random()*enemies.length)];
+        const meteorRadius = playerStats.meteorDamage * 2;
+        effects.push(new Effect(target.x, target.y, meteorRadius, 'rgba(255, 100, 0, 0.5)', 0.5));
+        enemies.forEach(e => { if(Math.hypot(target.x-e.x, target.y-e.y) < meteorRadius) e.takeDamage(playerStats.meteorDamage, 'meteor'); });
+    }
+    
+    // MOVIMENTAÇÃO E TIRO
+    let dx = 0, dy = 0;
+    if (keys['w'] || keys['arrowup']) dy = -1; if (keys['s'] || keys['arrowdown']) dy = 1;
+    if (keys['a'] || keys['arrowleft']) dx = -1; if (keys['d'] || keys['arrowright']) dx = 1;
+    const mag = Math.sqrt(dx*dx + dy*dy);
+    if(mag > 0) { player.x += (dx/mag) * playerStats.moveSpeed; player.y += (dy/mag) * playerStats.moveSpeed; }
+    player.x = Math.max(player.radius, Math.min(canvas.width-player.radius, player.x));
+    player.y = Math.max(player.radius, Math.min(canvas.height-player.radius, player.y));
+    
+    fireCooldown += 60 * deltaTime;
+    if (fireCooldown >= playerStats.fireRate) {
+        fireCooldown %= playerStats.fireRate;
+        let aimAngle;
+        if (isManualAiming) {
+            aimAngle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
+        } else {
+            if (enemies.length > 0) {
+                const closestEnemy = enemies.reduce((c, e) => (Math.hypot(player.x - e.x, player.y - e.y) < c.dist) ? {e, dist:Math.hypot(player.x-e.x,player.y-e.y)} : c, {e:null, dist:Infinity}).e;
+                if(closestEnemy) aimAngle = Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+            }
+        }
+        if (aimAngle !== undefined) {
+            for (let i = 0; i < playerStats.projAmount; i++) {
+                const spread = (i-(playerStats.projAmount-1)/2)*0.15;
+                projectiles.push(new Projectile(player.x,player.y,{x:Math.cos(aimAngle+spread)*playerStats.projSpeed, y:Math.sin(aimAngle+spread)*playerStats.projSpeed }, playerStats));
+            }
+        }
+    }
+
+    // ATUALIZAÇÃO E DESENHO DE ENTIDADES
+    xpOrbs.forEach(orb => orb.draw());
+    hearts.forEach(h => h.draw());
+    projectiles.forEach(p => p.draw());
+    enemies.forEach(e => e.draw(deltaTime));
+    player.draw();
+    effects.forEach(e => e.update(deltaTime));
+    damageNumbers.forEach(d => d.draw(ctx));
+    
+    if (isManualAiming) {
+        ctx.save(); ctx.strokeStyle = 'white'; ctx.lineWidth = 1; ctx.beginPath();
+        ctx.moveTo(mouse.x - 10, mouse.y); ctx.lineTo(mouse.x + 10, mouse.y);
+        ctx.moveTo(mouse.x, mouse.y - 10); ctx.lineTo(mouse.x, mouse.y + 10);
+        ctx.stroke(); ctx.restore();
+    }
+    
+    // ATUALIZAÇÃO DE ESTADO E COLISÕES
+    xpOrbs.forEach((orb, i) => { if (Math.hypot(player.x-orb.x, player.y-orb.y) < playerStats.pickupRadius) { gainXP(orb.value); xpOrbs.splice(i,1); } });
+    hearts.forEach((h, i) => { if (Math.hypot(player.x-h.x, player.y-h.y) < player.radius+h.radius) { playerStats.currentHealth = Math.min(playerStats.maxHealth, playerStats.currentHealth + 10); hearts.splice(i,1); } });
+    damageNumbers.forEach((d, i) => { d.update(deltaTime); if(d.alpha <= 0) damageNumbers.splice(i,1); });
+
+    projectiles.forEach((p, i) => { p.update(p.velocity); if(p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) projectiles.splice(i, 1); });
+
+    enemies.forEach((e, i) => {
+        e.update(e.velocity);
+        projectiles.forEach((p, pi) => {
+            if(p.pierce < 0) return;
+            if(Math.hypot(p.x-e.x, p.y-e.y) < p.radius+e.radius) { p.pierce--; e.takeDamage(p.damage, 'projectile'); if(p.pierce<0) projectiles.splice(pi,1); }
+        });
+        if(e.health <= 0) { enemies.splice(i,1); score += 10; xpOrbs.push(new XPOrb(e.x, e.y, e.xpValue)); if(Math.random() < playerStats.reaperSoulChance) hearts.push(new HealthHeart(e.x, e.y)); }
+        else if(Math.hypot(player.x-e.x, player.y-e.y) < player.radius+e.radius) { playerStats.currentHealth -= 10 * playerStats.defenseMultiplier; enemies.splice(i,1); if(playerStats.currentHealth <= 0) { playerStats.currentHealth = 0; endGame(); } }
+    });
+    
+    // SPAWN DE INIMIGOS
+    spawnTimer += deltaTime;
+    let spawnInterval = (gameTime < 30)? 1.5 : (gameTime < 90)? 0.8 : (gameTime < 180)? 0.4 : 0.15;
+    if(spawnTimer > spawnInterval) {
+        spawnTimer %= spawnInterval;
+        let health = 10+Math.floor(gameTime/10)*5; let radius = 10+Math.log2(health); let color = `hsl(${200+gameTime%160}, 50%, 40%)`;
+        if (gameTime > 120 && Math.random() < 0.15) { health *= 5; radius *= 1.8; color = 'hsl(300, 70%, 50%)'; }
+        let x,y; if (Math.random()<0.5){x=Math.random()<0.5?0-radius:canvas.width+radius;y=Math.random()*canvas.height;}else{x=Math.random()*canvas.width;y=Math.random()<0.5?0-radius:canvas.height+radius;}
+        const angle = Math.atan2(player.y-y, player.x-x);
+        enemies.push(new Enemy(x,y,radius,{x:Math.cos(angle)*1.5,y:Math.sin(angle)*1.5},health,color));
+    }
+    updateUI();
+}
+// --- EVENT LISTENERS ---
+window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+ui.restartButton.addEventListener('click', init);
+ui.rerollButton.addEventListener('click', () => { if(playerStats.rerolls > 0) { playerStats.rerolls--; populateLevelUpScreen(); } });
+window.addEventListener('resize', () => { if(!isGamePaused) init(); });
+
 ui.submitScoreButton.addEventListener('click', () => {
     const playerName = ui.playerNameInput.value;
     submitScore(playerName, score);
 });
 
-// O resto do seu código de jogo continua aqui...
-// ... init(), animate(), classes de inimigos, etc.
+window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+window.addEventListener('mousedown', () => { if(!isGamePaused) { isManualAiming = true; canvas.style.cursor = 'none'; } });
+window.addEventListener('mouseup', () => { if(!isGamePaused) { isManualAiming = false; canvas.style.cursor = 'auto'; } });
 
-// COLE O RESTO DO SEU CÓDIGO DE JOGO AQUI PARA COMPLETAR
-// (Omitido para não deixar a resposta gigantesca, mas ele deve estar aqui)
-
-// --- Exemplo resumido do seu código de jogo ---
-const ui = { 
-    // ... todos os seus elementos de UI
-    playerNameInput: document.getElementById('playerNameInput'),
-    submitScoreButton: document.getElementById('submitScoreButton'),
-    leaderboardList: document.getElementById('leaderboard-list'),
-};
-
-// ... todas as suas classes (Player, Enemy, etc) ...
-
-// ... todas as suas funções (init, animate, etc) ...
-
-// ... todos os seus event listeners (keydown, resize, etc) ...
-
-// A chamada final para iniciar o jogo
+// --- INICIAR O JOGO ---
 init();
 </script>
 </body>
