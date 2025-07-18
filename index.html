@@ -98,7 +98,7 @@ function init() {
     if (animationId) cancelAnimationFrame(animationId);
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     player = new Player(canvas.width / 2, canvas.height / 2);
-    playerStats = { maxHealth: 100, currentHealth: 100, healthRegen: 0, moveSpeed: 3, pickupRadius: 60, xpGain: 1, damageMultiplier: 1, defenseMultiplier: 1, rerolls: 0, fireRate: 35, projDamage: 5, projSpeed: 4, projSize: 5, projPierce: 0, projAmount: 1, reaperSoulChance: 0, staticFieldRadius: 0, staticFieldDamage: 2, meteorShower: 0, meteorDamage: 10, meteorInterval: 10, };
+    playerStats = { maxHealth: 100, currentHealth: 100, healthRegen: 0, moveSpeed: 3, pickupRadius: 60, xpGain: 1, damageMultiplier: 1, defenseMultiplier: 1, rerolls: 0, fireRate: 35, projDamage: 10, projSpeed: 4, projSize: 5, projPierce: 0, projAmount: 1, reaperSoulChance: 0, staticFieldRadius: 0, staticFieldDamage: 2, meteorShower: 0, meteorDamage: 10, meteorInterval: 10, };
     playerUpgrades = {};
     projectiles = []; enemies = []; xpOrbs = []; effects = []; hearts = []; damageNumbers = [];
     score = 0; level = 1; currentXP = 0; requiredXP = 80;
